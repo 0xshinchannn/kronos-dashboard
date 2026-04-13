@@ -1,0 +1,10 @@
+torch==2.1.0
+transformers==4.40.0
+huggingface-hub==0.33.1
+tokenizers==0.19.1
+safetensors==0.4.3
+yfinance==0.2.40
+pandas==2.2.2
+numpy==1.26.4
+einops
+vector-quantize-pytorch
