@@ -1,27 +1,24 @@
-import subprocess, sys, os
+import subprocess, sys, os, json
+from datetime import datetime, timezone
 
-# Clone Kronos repo
 if not os.path.exists("Kronos"):
     subprocess.run(["git", "clone", "https://github.com/shiyu-coder/Kronos.git"], check=True)
 
 sys.path.insert(0, "Kronos")
 
-import json
-from datetime import datetime, timezone
 import yfinance as yf
 import pandas as pd
-
 from model import Kronos, KronosTokenizer, KronosPredictor
 
 WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META']
-INTERVAL  = '1h'
-PERIOD    = '60d'
-LOOKBACK  = 380
-PRED_LEN  = 24
+INTERVAL = '1h'
+PERIOD = '60d'
+LOOKBACK = 380
+PRED_LEN = 24
 
-print("Loading Kronos model...")
+print("Loading model...")
 tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
-model     = Kronos.from_pretrained("NeoQuasar/Kronos-small")
+model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
 predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
 print("Model loaded.")
 
@@ -32,7 +29,6 @@ for ticker in WATCHLIST:
         print(f"Predicting {ticker}...")
         raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
         raw = raw.dropna()
-
         tmp = raw[['Open','High','Low','Close','Volume']].copy()
         tmp.columns = ['open','high','low','close','volume']
         tmp = tmp.reset_index()
@@ -40,43 +36,55 @@ for ticker in WATCHLIST:
         tmp['timestamps'] = pd.to_datetime(tmp['timestamps'])
 
         if len(tmp) < LOOKBACK + PRED_LEN:
-            print(f"  Skipping {ticker}: not enough data ({len(tmp)} rows)")
+            print(f"  Skip {ticker}: only {len(tmp)} rows")
             continue
 
-        total     = len(tmp)
-        start_idx = total - LOOKBACK - PRED_LEN
-        end_hist  = start_idx + LOOKBACK
+        total = len(tmp)
+        si = total - LOOKBACK - PRED_LEN
+        ei = si + LOOKBACK
 
-        x_df        = tmp.loc[start_idx:end_hist-1, ['open','high','low','close','volume']].reset_index(drop=True)
-        x_timestamp = tmp.loc[start_idx:end_hist-1, 'timestamps'].reset_index(drop=True)
-        y_timestamp = tmp.loc[end_hist:end_hist+PRED_LEN-1, 'timestamps'].reset_index(drop=True)
+        x_df = tmp.loc[si:ei-1, ['open','high','low','close','volume']].reset_index(drop=True)
+        x_ts = tmp.loc[si:ei-1, 'timestamps'].reset_index(drop=True)
+        y_ts = tmp.loc[ei:ei+PRED_LEN-1, 'timestamps'].reset_index(drop=True)
 
-        pred = predictor.predict(
-            df=x_df,
-            x_timestamp=x_timestamp,
-            y_timestamp=y_timestamp,
-            pred_len=PRED_LEN,
-            T=1.0, top_p=0.9, sample_count=3
-        )
+        pred = predictor.predict(df=x_df, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=PRED_LEN, T=1.0, top_p=0.9, sample_count=3)
 
-        cur_price  = float(x_df['close'].iloc[-1])
-        pred_price = float(pred['close'].iloc[-1])
-        chg_pct    = (pred_price - cur_price) / cur_price * 100
+        cur = float(x_df['close'].iloc[-1])
+        prd = float(pred['close'].iloc[-1])
+        chg = (prd - cur) / cur * 100
 
-        if chg_pct > 1.5:
-            signal = 'BUY'
-        elif chg_pct < -1.5:
-            signal = 'SELL'
+        if chg > 1.5:
+            sig = 'BUY'
+        elif chg < -1.5:
+            sig = 'SELL'
         else:
-            signal = 'HOLD'
-
-        history_spark = x_df['close'].tail(24).tolist()
-        pred_spark    = pred['close'].tolist()
+            sig = 'HOLD'
 
         results.append({
-            'ticker':        ticker,
-            'current':       round(cur_price, 2),
-            'predicted':     round(pred_price, 2),
-            'change_pct':    round(chg_pct, 2),
-            'signal':        signal,
-            'pred_high':     round(floa
+            'ticker': ticker,
+            'current': round(cur, 2),
+            'predicted': round(prd, 2),
+            'change_pct': round(chg, 2),
+            'signal': sig,
+            'pred_high': round(float(pred['high'].max()), 2),
+            'pred_low': round(float(pred['low'].min()), 2),
+            'history_spark': [round(v, 2) for v in x_df['close'].tail(24).tolist()],
+            'pred_spark': [round(v, 2) for v in pred['close'].tolist()],
+        })
+        print(f"  {ticker}: {chg:+.2f}% -> {sig}")
+
+    except Exception as e:
+        print(f"  ERROR {ticker}: {e}")
+
+output = {
+    'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
+    'interval': INTERVAL,
+    'pred_hours': PRED_LEN,
+    'stocks': results
+}
+
+os.makedirs('docs', exist_ok=True)
+with open('docs/data.json', 'w') as f:
+    json.dump(output, f, indent=2)
+
+print(f"Done! {len(results)} predictions saved.")
