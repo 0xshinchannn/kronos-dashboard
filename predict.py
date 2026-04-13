@@ -27,7 +27,15 @@ results = []
 for ticker in WATCHLIST:
     try:
         print(f"Predicting {ticker}...")
+        import time
+for attempt in range(3):
+    try:
         raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
+        if len(raw) > 0:
+            break
+        time.sleep(5)
+    except:
+        time.sleep(5)
         raw = raw.dropna()
         tmp = raw[['Open','High','Low','Close','Volume']].copy()
         tmp.columns = ['open','high','low','close','volume']
