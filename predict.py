@@ -1,4 +1,4 @@
-import subprocess, sys, os, json
+import subprocess, sys, os, json, time
 from datetime import datetime, timezone
 
 if not os.path.exists("Kronos"):
@@ -22,21 +22,27 @@ model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
 predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
 print("Model loaded.")
 
+def fetch_data(ticker):
+    for attempt in range(3):
+        try:
+            raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
+            if len(raw) > 0:
+                return raw
+        except Exception as e:
+            print(f"  Attempt {attempt+1} failed: {e}")
+        time.sleep(5)
+    return None
+
 results = []
 
 for ticker in WATCHLIST:
     try:
         print(f"Predicting {ticker}...")
-        import time
-for attempt in range(3):
-    try:
-        raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
-        if len(raw) > 0:
-            break
-        time.sleep(5)
-    except:
-        time.sleep(5)
-        raw = raw.dropna()
+        raw = fetch_data(ticker)
+        if raw is None or len(raw) == 0:
+            print(f"  Skip {ticker}: no data")
+            continue
+
         tmp = raw[['Open','High','Low','Close','Volume']].copy()
         tmp.columns = ['open','high','low','close','volume']
         tmp = tmp.reset_index()
