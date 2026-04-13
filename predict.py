@@ -1,12 +1,15 @@
-import sys
-import json
-import os
-from datetime import datetime, timezone
+import subprocess, sys, os
 
+# Clone Kronos repo
+if not os.path.exists("Kronos"):
+    subprocess.run(["git", "clone", "https://github.com/shiyu-coder/Kronos.git"], check=True)
+
+sys.path.insert(0, "Kronos")
+
+import json
+from datetime import datetime, timezone
 import yfinance as yf
 import pandas as pd
-
-sys.path.insert(0, ".")
 
 from model import Kronos, KronosTokenizer, KronosPredictor
 
@@ -67,35 +70,13 @@ for ticker in WATCHLIST:
         else:
             signal = 'HOLD'
 
-        # Build sparkline from last 24 closes + predicted closes
         history_spark = x_df['close'].tail(24).tolist()
         pred_spark    = pred['close'].tolist()
 
         results.append({
-            'ticker':      ticker,
-            'current':     round(cur_price, 2),
-            'predicted':   round(pred_price, 2),
-            'change_pct':  round(chg_pct, 2),
-            'signal':      signal,
-            'pred_high':   round(float(pred['high'].max()), 2),
-            'pred_low':    round(float(pred['low'].min()), 2),
-            'history_spark': [round(v, 2) for v in history_spark],
-            'pred_spark':    [round(v, 2) for v in pred_spark],
-        })
-        print(f"  {ticker}: {chg_pct:+.2f}% → {signal}")
-
-    except Exception as e:
-        print(f"  ERROR {ticker}: {e}")
-
-output = {
-    'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
-    'interval':   INTERVAL,
-    'pred_hours': PRED_LEN,
-    'stocks':     results
-}
-
-os.makedirs('docs', exist_ok=True)
-with open('docs/data.json', 'w') as f:
-    json.dump(output, f, indent=2)
-
-print(f"\nDone! Saved {len(results)} predictions to docs/data.json")
+            'ticker':        ticker,
+            'current':       round(cur_price, 2),
+            'predicted':     round(pred_price, 2),
+            'change_pct':    round(chg_pct, 2),
+            'signal':        signal,
+            'pred_high':     round(floa
