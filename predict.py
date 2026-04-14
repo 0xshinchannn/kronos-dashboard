@@ -10,7 +10,7 @@ import yfinance as yf
 import pandas as pd
 from model import Kronos, KronosTokenizer, KronosPredictor
 
-WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META']
+WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB']
 INTERVAL = '1h'
 PERIOD = '60d'
 LOOKBACK = 380
