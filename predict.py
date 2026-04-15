@@ -73,7 +73,8 @@ for ticker in WATCHLIST:
 
         pred = predictor.predict(df=x_df, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=PRED_LEN, T=1.0, top_p=0.9, sample_count=3)
 
-        cur = float(x_df['close'].iloc[-1])
+        latest = fetch_latest_price(ticker)
+        cur = latest if latest else float(x_df['close'].iloc[-1])
         prd = float(pred['close'].iloc[-1])
         chg = (prd - cur) / cur * 100
 
