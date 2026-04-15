@@ -1,4 +1,4 @@
-import subprocess, sys, os, json, time
+import subprocess, sys, os, json, time, requests
 from datetime import datetime, timezone
 
 if not os.path.exists("Kronos"):
@@ -6,13 +6,13 @@ if not os.path.exists("Kronos"):
 
 sys.path.insert(0, "Kronos")
 
-import yfinance as yf
 import pandas as pd
 from model import Kronos, KronosTokenizer, KronosPredictor
 
+POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+
 WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB']
 INTERVAL = '1h'
-PERIOD = '60d'
 LOOKBACK = 380
 PRED_LEN = 24
 
@@ -22,15 +22,31 @@ model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
 predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
 print("Model loaded.")
 
-def fetch_data(ticker):
+def fetch_polygon(ticker):
+    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/hour/2025-01-01/{datetime.now().strftime('%Y-%m-%d')}"
+    params = {
+        'adjusted': 'true',
+        'sort': 'asc',
+        'limit': 50000,
+        'apiKey': POLYGON_API_KEY
+    }
     for attempt in range(3):
         try:
-            raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
-            if len(raw) > 0:
-                return raw
+            res = requests.get(url, params=params, timeout=30)
+            data = res.json()
+            if data.get('resultsCount', 0) == 0:
+                print(f"  No data for {ticker}")
+                return None
+            results = data['results']
+            df = pd.DataFrame(results)
+            df['timestamps'] = pd.to_datetime(df['t'], unit='ms')
+            df = df.rename(columns={'o':'open','h':'high','l':'low','c':'close','v':'volume'})
+            df = df[['timestamps','open','high','low','close','volume']].reset_index(drop=True)
+            print(f"  {ticker}: {len(df)} rows fetched, last price: ${df['close'].iloc[-1]:.2f}")
+            return df
         except Exception as e:
             print(f"  Attempt {attempt+1} failed: {e}")
-        time.sleep(5)
+            time.sleep(5)
     return None
 
 results = []
@@ -38,16 +54,10 @@ results = []
 for ticker in WATCHLIST:
     try:
         print(f"Predicting {ticker}...")
-        raw = fetch_data(ticker)
-        if raw is None or len(raw) == 0:
+        tmp = fetch_polygon(ticker)
+        if tmp is None or len(tmp) == 0:
             print(f"  Skip {ticker}: no data")
             continue
-
-        tmp = raw[['Open','High','Low','Close','Volume']].copy()
-        tmp.columns = ['open','high','low','close','volume']
-        tmp = tmp.reset_index()
-        tmp = tmp.rename(columns={'Datetime':'timestamps','Date':'timestamps'})
-        tmp['timestamps'] = pd.to_datetime(tmp['timestamps'])
 
         if len(tmp) < LOOKBACK + PRED_LEN:
             print(f"  Skip {ticker}: only {len(tmp)} rows")
