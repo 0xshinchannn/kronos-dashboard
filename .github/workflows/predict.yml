@@ -27,9 +27,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install yfinance
+          pip install requests
 
       - name: Run Kronos prediction
+        env:
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
         run: python predict.py
 
       - name: Commit and push results
