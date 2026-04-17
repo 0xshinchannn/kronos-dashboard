@@ -6,13 +6,13 @@ if not os.path.exists("Kronos"):
 
 sys.path.insert(0, "Kronos")
 
+import yfinance as yf
 import pandas as pd
 from model import Kronos, KronosTokenizer, KronosPredictor
 
-POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
-
 WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB']
 INTERVAL = '1h'
+PERIOD = '60d'
 LOOKBACK = 380
 PRED_LEN = 24
 
@@ -22,31 +22,28 @@ model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
 predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
 print("Model loaded.")
 
-def fetch_polygon(ticker):
-    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/hour/2025-01-01/{datetime.now().strftime('%Y-%m-%d')}"
-    params = {
-        'adjusted': 'true',
-        'sort': 'asc',
-        'limit': 50000,
-        'apiKey': POLYGON_API_KEY
-    }
+def fetch_data(ticker):
     for attempt in range(3):
         try:
-            res = requests.get(url, params=params, timeout=30)
-            data = res.json()
-            if data.get('resultsCount', 0) == 0:
-                print(f"  No data for {ticker}")
-                return None
-            results = data['results']
-            df = pd.DataFrame(results)
-            df['timestamps'] = pd.to_datetime(df['t'], unit='ms')
-            df = df.rename(columns={'o':'open','h':'high','l':'low','c':'close','v':'volume'})
-            df = df[['timestamps','open','high','low','close','volume']].reset_index(drop=True)
-            print(f"  {ticker}: {len(df)} rows fetched, last price: ${df['close'].iloc[-1]:.2f}")
-            return df
+            raw = yf.download(ticker, period=PERIOD, interval=INTERVAL, auto_adjust=True, progress=False)
+            if len(raw) > 0:
+                return raw
         except Exception as e:
             print(f"  Attempt {attempt+1} failed: {e}")
-            time.sleep(5)
+        time.sleep(5)
+    return None
+
+def fetch_latest_price(ticker):
+    for attempt in range(3):
+        try:
+            t = yf.Ticker(ticker)
+            info = t.fast_info
+            price = info.last_price
+            if price and price > 0:
+                return float(price)
+        except Exception as e:
+            print(f"  Latest price attempt {attempt+1} failed: {e}")
+        time.sleep(2)
     return None
 
 results = []
@@ -54,10 +51,16 @@ results = []
 for ticker in WATCHLIST:
     try:
         print(f"Predicting {ticker}...")
-        tmp = fetch_polygon(ticker)
-        if tmp is None or len(tmp) == 0:
+        raw = fetch_data(ticker)
+        if raw is None or len(raw) == 0:
             print(f"  Skip {ticker}: no data")
             continue
+
+        tmp = raw[['Open','High','Low','Close','Volume']].copy()
+        tmp.columns = ['open','high','low','close','volume']
+        tmp = tmp.reset_index()
+        tmp = tmp.rename(columns={'Datetime':'timestamps','Date':'timestamps'})
+        tmp['timestamps'] = pd.to_datetime(tmp['timestamps'])
 
         if len(tmp) < LOOKBACK + PRED_LEN:
             print(f"  Skip {ticker}: only {len(tmp)} rows")
@@ -73,8 +76,17 @@ for ticker in WATCHLIST:
 
         pred = predictor.predict(df=x_df, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=PRED_LEN, T=1.0, top_p=0.9, sample_count=3)
 
-        cur = float(tmp['close'].iloc[-1])
+        # 用最新價格顯示現價
+        latest = fetch_latest_price(ticker)
+        cur = latest if latest else float(tmp['close'].iloc[-1])
         prd = float(pred['close'].iloc[-1])
+
+        # 預測價格按比例調整
+        hist_last = float(tmp['close'].iloc[-1])
+        if hist_last > 0 and cur != hist_last:
+            scale = cur / hist_last
+            prd = prd * scale
+
         chg = (prd - cur) / cur * 100
 
         if chg > 1.5:
@@ -84,18 +96,19 @@ for ticker in WATCHLIST:
         else:
             sig = 'HOLD'
 
+        print(f"  {ticker}: cur=${cur:.2f} pred=${prd:.2f} {chg:+.2f}% -> {sig}")
+
         results.append({
             'ticker': ticker,
             'current': round(cur, 2),
             'predicted': round(prd, 2),
             'change_pct': round(chg, 2),
             'signal': sig,
-            'pred_high': round(float(pred['high'].max()), 2),
-            'pred_low': round(float(pred['low'].min()), 2),
+            'pred_high': round(float(pred['high'].max()) * (cur / hist_last if hist_last > 0 else 1), 2),
+            'pred_low': round(float(pred['low'].min()) * (cur / hist_last if hist_last > 0 else 1), 2),
             'history_spark': [round(v, 2) for v in x_df['close'].tail(24).tolist()],
             'pred_spark': [round(v, 2) for v in pred['close'].tolist()],
         })
-        print(f"  {ticker}: {chg:+.2f}% -> {sig}")
 
     except Exception as e:
         print(f"  ERROR {ticker}: {e}")
