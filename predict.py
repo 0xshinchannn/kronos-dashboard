@@ -87,13 +87,27 @@ for ticker in WATCHLIST:
         cur = latest if latest else float(tmp['close'].iloc[-1])
         hist_last = float(tmp['close'].iloc[-1])
 
-        # 計算 scale factor（現價 vs 模型用嘅歷史最後價）
-        scale = (cur / hist_last) if hist_last > 0 and cur != hist_last else 1.0
+        # 計算模型預測嘅方向 (用 history 範圍內嘅相對變化)
+        hist_base = float(x_df['close'].iloc[-1])  # 模型 context 最後一個 close
+        raw_pred_last = float(pred['close'].iloc[-1])
+        raw_chg = (raw_pred_last - hist_base) / hist_base * 100  # 模型預測嘅 % 變化
 
-        # 預測價格按比例調整
-        prd = float(pred['close'].iloc[-1]) * scale
+        # Clamp: 限制最大預測幅度係 ±8%，避免極端值
+        MAX_CHG = 8.0
+        clamped_chg = max(-MAX_CHG, min(MAX_CHG, raw_chg))
 
-        chg = (prd - cur) / cur * 100
+        # 由現價 + clamped % 計算 predicted price
+        prd = cur * (1 + clamped_chg / 100)
+
+        # 同樣用 clamped 幅度計算 pred_high / pred_low
+        raw_high_chg = (float(pred['high'].max()) - hist_base) / hist_base * 100
+        raw_low_chg  = (float(pred['low'].min())  - hist_base) / hist_base * 100
+        clamped_high_chg = max(-MAX_CHG, min(MAX_CHG, raw_high_chg))
+        clamped_low_chg  = max(-MAX_CHG, min(MAX_CHG, raw_low_chg))
+        pred_high = cur * (1 + clamped_high_chg / 100)
+        pred_low  = cur * (1 + clamped_low_chg  / 100)
+
+        chg = clamped_chg
 
         if chg > 1.5:
             sig = 'BUY'
@@ -108,8 +122,10 @@ for ticker in WATCHLIST:
         for _ in range(PROB_SAMPLES):
             try:
                 s_pred = predictor.predict(df=x_df, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=PRED_LEN, T=1.0, top_p=0.9, sample_count=1)
-                s_prd = float(s_pred['close'].iloc[-1]) * scale
-                sample_chgs.append((s_prd - cur) / cur * 100)
+                s_raw = float(s_pred['close'].iloc[-1])
+                s_chg = (s_raw - hist_base) / hist_base * 100
+                s_chg = max(-MAX_CHG, min(MAX_CHG, s_chg))
+                sample_chgs.append(s_chg)
             except:
                 pass
 
@@ -123,7 +139,9 @@ for ticker in WATCHLIST:
         else:
             prob = 50
 
-        print(f"  {ticker}: cur=${cur:.2f} pred=${prd:.2f} {chg:+.2f}% -> {sig} ({prob}%)")
+        # history_spark / pred_spark: 用 scale 令 sparkline 視覺上同現價對齊
+        scale = (cur / hist_last) if hist_last > 0 else 1.0
+        print(f"  {ticker}: cur=${cur:.2f} raw_chg={raw_chg:+.2f}% clamped={clamped_chg:+.2f}% pred=${prd:.2f} -> {sig} ({prob}%)")
 
         results.append({
             'ticker': ticker,
@@ -132,8 +150,8 @@ for ticker in WATCHLIST:
             'change_pct': round(chg, 2),
             'signal': sig,
             'probability': prob,
-            'pred_high': round(float(pred['high'].max()) * scale, 2),
-            'pred_low':  round(float(pred['low'].min())  * scale, 2),
+            'pred_high': round(pred_high, 2),
+            'pred_low':  round(pred_low, 2),
             'history_spark': [round(v * scale, 2) for v in x_df['close'].tail(24).tolist()],
             'pred_spark':    [round(v * scale, 2) for v in pred['close'].tolist()],
         })
