@@ -79,13 +79,13 @@ for ticker in WATCHLIST:
         # 用最新價格顯示現價
         latest = fetch_latest_price(ticker)
         cur = latest if latest else float(tmp['close'].iloc[-1])
-        prd = float(pred['close'].iloc[-1])
+        hist_last = float(tmp['close'].iloc[-1])
+
+        # 計算 scale factor（現價 vs 模型用嘅歷史最後價）
+        scale = (cur / hist_last) if hist_last > 0 and cur != hist_last else 1.0
 
         # 預測價格按比例調整
-        hist_last = float(tmp['close'].iloc[-1])
-        if hist_last > 0 and cur != hist_last:
-            scale = cur / hist_last
-            prd = prd * scale
+        prd = float(pred['close'].iloc[-1]) * scale
 
         chg = (prd - cur) / cur * 100
 
@@ -96,7 +96,7 @@ for ticker in WATCHLIST:
         else:
             sig = 'HOLD'
 
-        print(f"  {ticker}: cur=${cur:.2f} pred=${prd:.2f} {chg:+.2f}% -> {sig}")
+        print(f"  {ticker}: cur=${cur:.2f} hist_last=${hist_last:.2f} scale={scale:.4f} pred=${prd:.2f} {chg:+.2f}% -> {sig}")
 
         results.append({
             'ticker': ticker,
@@ -104,10 +104,12 @@ for ticker in WATCHLIST:
             'predicted': round(prd, 2),
             'change_pct': round(chg, 2),
             'signal': sig,
-            'pred_high': round(float(pred['high'].max()) * (cur / hist_last if hist_last > 0 else 1), 2),
-            'pred_low': round(float(pred['low'].min()) * (cur / hist_last if hist_last > 0 else 1), 2),
-            'history_spark': [round(v, 2) for v in x_df['close'].tail(24).tolist()],
-            'pred_spark': [round(v, 2) for v in pred['close'].tolist()],
+            # FIX: pred_high/pred_low 都用 scale
+            'pred_high': round(float(pred['high'].max()) * scale, 2),
+            'pred_low':  round(float(pred['low'].min())  * scale, 2),
+            # FIX: history_spark 同 pred_spark 都用 scale，令 sparkline 同現價對齊
+            'history_spark': [round(v * scale, 2) for v in x_df['close'].tail(24).tolist()],
+            'pred_spark':    [round(v * scale, 2) for v in pred['close'].tolist()],
         })
 
     except Exception as e:
