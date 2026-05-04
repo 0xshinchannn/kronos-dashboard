@@ -10,7 +10,13 @@ import yfinance as yf
 import pandas as pd
 from model import Kronos, KronosTokenizer, KronosPredictor
 
-WATCHLIST = ['AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN', 'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB', 'INTC', 'HOOD', 'SNDK', 'CRCL', 'PLTR', 'AVGO', 'BAB']
+WATCHLIST = [
+    'AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN',
+    'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB',
+    'INTC', 'HOOD', 'SNDK', 'CRCL', 'PLTR', 'AVGO', 'BAB',
+    'PDD', 'CAR', 'BIRD', 'GME', 'EWY', 'CRWV', 'ORCL', 'RIVN',
+    'USAR', 'BMNR', 'URNM', 'LLY', 'RTX', 'DKNG'
+]
 INTERVAL = '1h'
 PERIOD = '60d'
 LOOKBACK = 380
@@ -96,7 +102,28 @@ for ticker in WATCHLIST:
         else:
             sig = 'HOLD'
 
-        print(f"  {ticker}: cur=${cur:.2f} hist_last=${hist_last:.2f} scale={scale:.4f} pred=${prd:.2f} {chg:+.2f}% -> {sig}")
+        # 計算 probability：跑多 10 個 samples，計方向一致性
+        PROB_SAMPLES = 10
+        sample_chgs = []
+        for _ in range(PROB_SAMPLES):
+            try:
+                s_pred = predictor.predict(df=x_df, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=PRED_LEN, T=1.0, top_p=0.9, sample_count=1)
+                s_prd = float(s_pred['close'].iloc[-1]) * scale
+                sample_chgs.append((s_prd - cur) / cur * 100)
+            except:
+                pass
+
+        if len(sample_chgs) > 0:
+            if sig == 'BUY':
+                prob = round(sum(1 for c in sample_chgs if c > 1.5) / len(sample_chgs) * 100)
+            elif sig == 'SELL':
+                prob = round(sum(1 for c in sample_chgs if c < -1.5) / len(sample_chgs) * 100)
+            else:
+                prob = round(sum(1 for c in sample_chgs if -1.5 <= c <= 1.5) / len(sample_chgs) * 100)
+        else:
+            prob = 50
+
+        print(f"  {ticker}: cur=${cur:.2f} pred=${prd:.2f} {chg:+.2f}% -> {sig} ({prob}%)")
 
         results.append({
             'ticker': ticker,
@@ -104,10 +131,9 @@ for ticker in WATCHLIST:
             'predicted': round(prd, 2),
             'change_pct': round(chg, 2),
             'signal': sig,
-            # FIX: pred_high/pred_low 都用 scale
+            'probability': prob,
             'pred_high': round(float(pred['high'].max()) * scale, 2),
             'pred_low':  round(float(pred['low'].min())  * scale, 2),
-            # FIX: history_spark 同 pred_spark 都用 scale，令 sparkline 同現價對齊
             'history_spark': [round(v * scale, 2) for v in x_df['close'].tail(24).tolist()],
             'pred_spark':    [round(v * scale, 2) for v in pred['close'].tolist()],
         })
