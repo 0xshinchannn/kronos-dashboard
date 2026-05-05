@@ -261,11 +261,15 @@ function rangeBar(low, high, cur) {
   </div>`;
 }
 
-function probCell(prob, signal) {
+function probCell(prob, signal, agreement) {
   const c = cls(signal);
   const val = prob != null ? prob : '—';
   const w = prob != null ? prob : 0;
-  return `<div class="prob-cell"><span class="prob-label ${c}">${val}%</span><div class="prob-bar-track"><div class="prob-bar-fill ${c}" style="width:${w}%"></div></div></div>`;
+  // Agreement indicator
+  let agreeTag = '';
+  if (agreement === true)       agreeTag = '<span style="font-size:8px;color:var(--buy);margin-left:3px;" title="Both models agree">✓✓</span>';
+  else if (agreement === false) agreeTag = '<span style="font-size:8px;color:var(--hold);margin-left:3px;" title="Models disagree">±</span>';
+  return `<div class="prob-cell"><span class="prob-label ${c}">${val}%${agreeTag}</span><div class="prob-bar-track"><div class="prob-bar-fill ${c}" style="width:${w}%"></div></div></div>`;
 }
 
 function sortData(stocks) {
@@ -333,7 +337,7 @@ function refreshTable() {
       <td class="col-num"><span class="price-cur">$${fmt(s.current)}</span></td>
       <td class="col-num"><span class="price-pred">$${fmt(s.predicted)}</span></td>
       <td class="col-num"><span class="chg ${cls(s.signal)}">${pct(s.change_pct)}</span></td>
-      <td class="col-prob">${probCell(s.probability, s.signal)}</td>
+      <td class="col-prob">${probCell(s.probability, s.signal, s.ensemble_agreement)}</td>
       <td class="col-range">${rangeBar(s.pred_low, s.pred_high, s.current)}</td>
       <td class="col-spark"><canvas class="spark" id="sp-${s.ticker}" width="140" height="40"></canvas></td>
     </tr>`).join('');
