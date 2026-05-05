@@ -172,21 +172,17 @@ canvas.spark { display: block; }
 
 <script>
 const TICKER_NAMES = {
+  // 大型科技
   AAPL:'Apple Inc.', NVDA:'NVIDIA Corp.', TSLA:'Tesla Inc.',
-  COIN:'Coinbase Global', AMD:'Advanced Micro Devices', PYPL:'PayPal Holdings',
-  MSTR:'MicroStrategy', GOOGL:'Alphabet Inc.', AMZN:'Amazon.com Inc.',
-  SPY:'S&P 500 ETF', META:'Meta Platforms', MSFT:'Microsoft Corp.',
-  QQQ:'Nasdaq 100 ETF', SLV:'Silver ETF', TSM:'Taiwan Semiconductor',
-  MU:'Micron Technology', NFLX:'Netflix Inc.', BABA:'Alibaba Group', ABNB:'Airbnb Inc.',
-  INTC:'Intel Corp.', HOOD:'Robinhood Markets', SNDK:'SanDisk Corp.',
-  CRCL:'Circle Internet Group', PLTR:'Palantir Technologies',
-  AVGO:'Broadcom Inc.', BAB:'Invesco Muni Bond ETF',
-  PDD:'PDD Holdings', CAR:'Avis Budget Group', BIRD:'Allbirds Inc.',
-  GME:'GameStop Corp.', EWY:'iShares MSCI S.Korea ETF',
-  CRWV:'CoreWeave Inc.', ORCL:'Oracle Corp.', RIVN:'Rivian Automotive',
-  USAR:'USA Rare Earth Inc.', BMNR:'Bitmine Immersion Tech',
-  URNM:'Sprott Uranium Miners ETF', LLY:'Eli Lilly & Co.',
-  RTX:'RTX Corp.', DKNG:'DraftKings Inc.'
+  GOOGL:'Alphabet Inc.', AMZN:'Amazon.com Inc.', META:'Meta Platforms',
+  MSFT:'Microsoft Corp.', TSM:'Taiwan Semiconductor',
+  // 高波動 / 熱門
+  COIN:'Coinbase Global', MSTR:'MicroStrategy', GME:'GameStop Corp.',
+  PLTR:'Palantir Technologies', HOOD:'Robinhood Markets', SNDK:'SanDisk Corp.',
+  CRCL:'Circle Internet Group', CRWV:'CoreWeave Inc.',
+  USAR:'USA Rare Earth Inc.', PDD:'PDD Holdings', BABA:'Alibaba Group',
+  AMD:'Advanced Micro Devices', PYPL:'PayPal Holdings', MU:'Micron Technology',
+  INTC:'Intel Corp.', NFLX:'Netflix Inc.', ABNB:'Airbnb Inc.'
 };
 
 let currentFilter = 'ALL';
