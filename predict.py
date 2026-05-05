@@ -11,32 +11,27 @@ import pandas as pd
 from model import Kronos, KronosTokenizer, KronosPredictor
 
 WATCHLIST = [
-    'AAPL', 'NVDA', 'TSLA', 'COIN', 'AMD', 'PYPL', 'MSTR', 'GOOGL', 'AMZN',
-    'SPY', 'META', 'MSFT', 'QQQ', 'SLV', 'TSM', 'MU', 'NFLX', 'BABA', 'ABNB',
-    'INTC', 'HOOD', 'SNDK', 'CRCL', 'PLTR', 'AVGO', 'BAB',
-    'PDD', 'CAR', 'BIRD', 'GME', 'EWY', 'CRWV', 'ORCL', 'RIVN',
-    'USAR', 'BMNR', 'URNM', 'LLY', 'RTX', 'DKNG'
+    # 大型科技
+    'AAPL', 'NVDA', 'TSLA', 'GOOGL', 'AMZN', 'META', 'MSFT', 'TSM',
+    # 高波動 / 熱門
+    'COIN', 'MSTR', 'GME', 'PLTR', 'HOOD', 'SNDK', 'CRCL', 'CRWV',
+    'USAR', 'PDD', 'BABA', 'AMD', 'PYPL', 'MU', 'INTC', 'NFLX', 'ABNB'
 ]
 
 # Per-ticker 24h max change cap
-# ETF: ±3%  |  Mega-cap: ±5%  |  Normal: ±8%  |  High-vol: ±15%
+# Mega-cap: ±5-6%  |  Normal: ±8%  |  High-vol: ±12-15%
 MAX_CHG_MAP = {
-    # ETFs — tightest cap
-    'SPY': 3.0, 'QQQ': 3.0, 'EWY': 3.0, 'SLV': 4.0,
-    'BAB': 2.0, 'URNM': 5.0,
-    # Mega-cap stable
+    # 大型科技
     'AAPL': 5.0, 'MSFT': 5.0, 'GOOGL': 5.0, 'AMZN': 5.0,
-    'META': 6.0, 'NVDA': 6.0, 'AVGO': 6.0, 'TSM': 6.0,
-    'ORCL': 5.0, 'LLY': 5.0, 'RTX': 4.0,
-    # Normal stocks
-    'TSLA': 8.0, 'AMD': 8.0, 'PYPL': 6.0, 'NFLX': 6.0,
-    'BABA': 7.0, 'ABNB': 7.0, 'INTC': 7.0, 'PLTR': 8.0,
-    'MU': 7.0, 'PDD': 8.0, 'DKNG': 8.0,
-    'CAR': 8.0, 'RIVN': 10.0,
-    # High volatility
+    'META': 6.0, 'NVDA': 6.0, 'TSM': 6.0, 'TSLA': 8.0,
+    # 一般
+    'AMD': 8.0, 'PYPL': 6.0, 'NFLX': 6.0, 'BABA': 7.0,
+    'ABNB': 7.0, 'INTC': 7.0, 'PLTR': 8.0, 'MU': 7.0,
+    'PDD': 8.0,
+    # 高波動
     'COIN': 12.0, 'MSTR': 15.0, 'GME': 15.0, 'SNDK': 15.0,
     'HOOD': 10.0, 'CRCL': 10.0, 'CRWV': 12.0,
-    'USAR': 12.0, 'BMNR': 15.0, 'BIRD': 12.0,
+    'USAR': 12.0,
 }
 DEFAULT_MAX_CHG = 8.0
 INTERVAL = '1h'
